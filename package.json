@@ -1,0 +1,26 @@
+{
+  "name": "claw-activity-stream",
+  "version": "1.0.0",
+  "description": "Discord bot for streaming OpenClaw agent activity",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "test": "node --test"
+  },
+  "keywords": ["discord", "openclaw", "activity", "streaming", "bot"],
+  "author": "Bob",
+  "license": "MIT",
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "express": "^4.21.2",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
