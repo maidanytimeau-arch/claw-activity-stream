@@ -1,5 +1,3 @@
-// Simplified version without JSON code blocks
-
 import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
 import express from 'express';
 import dotenv from 'dotenv';
@@ -29,19 +27,10 @@ client.once('ready', () => {
   console.log(`🤖 Claw Activity Stream bot logged in as ${client.user.tag}`);
   console.log(`📡 Streaming to channel: ${ACTIVITY_CHANNEL_ID}`);
   console.log(`⏱️ Started at: ${startTime.toISOString()}`);
-
-  // Check channel access
-  client.channels.fetch(ACTIVITY_CHANNEL_ID)
-    .then(channel => {
-      console.log(`✅ Successfully accessed channel: ${channel.name || channel.id}`);
-    })
-    .catch(err => {
-      console.error(`❌ Cannot access channel ${ACTIVITY_CHANNEL_ID}:`, err.message);
-    });
 });
 
 // Webhook endpoint for receiving activity events
-app.post('/webhook/activity', async (req, res) => {
+app.post('/webhook/activity', (req, res) => {
   // Verify webhook secret if configured
   if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' });
@@ -52,9 +41,9 @@ app.post('/webhook/activity', async (req, res) => {
   }
 
   const event = req.body;
-  const result = await sendActivityToDiscord(event);
+  sendActivityToDiscord(event);
 
-  res.json(result);
+  res.json({ status: 'ok' });
 });
 
 // Health check
@@ -73,22 +62,13 @@ async function sendActivityToDiscord(event) {
     const channel = await client.channels.fetch(ACTIVITY_CHANNEL_ID);
     if (!channel) {
       console.error('❌ Activity channel not found');
-      return { status: 'error', error: 'Channel not found' };
+      return;
     }
 
     const embed = createActivityEmbed(event);
     await channel.send({ embeds: [embed] });
-
-    return { status: 'ok' };
   } catch (error) {
-    console.error('❌ Error sending activity to Discord:');
-    console.error('   Message:', error.message);
-    console.error('   Code:', error.code);
-    console.error('   Stack:', error.stack);
-    if (error.rawError) {
-      console.error('   Raw error:', JSON.stringify(error.rawError, null, 2));
-    }
-    return { status: 'error', error: error.message, code: error.code };
+    console.error('❌ Error sending activity to Discord:', error.message);
   }
 }
 
@@ -118,35 +98,26 @@ function createActivityEmbed(event) {
 
   const embed = new EmbedBuilder()
     .setColor(color)
-    .setTitle(`${icon} ${type.replace(/_/g, ' ').toUpperCase()}`);
-
-  // Only set timestamp if it's valid
-  if (event.timestamp) {
-    const timestamp = new Date(event.timestamp);
-    if (!isNaN(timestamp.getTime())) {
-      embed.setTimestamp(timestamp);
-    }
-  } else {
-    embed.setTimestamp();
-  }
+    .setTitle(`${icon} ${type.replace(/_/g, ' ').toUpperCase()}`)
+    .setTimestamp(event.timestamp || new Date());
 
   // Add tool info
   if (event.tool) {
-    embed.addFields({ name: 'Tool', value: event.tool, inline: true });
+    embed.addFields({ name: 'Tool', value: `\`${event.tool}\``, inline: true });
   }
 
   // Add args (truncate if too long)
   if (event.args) {
     const argsStr = typeof event.args === 'string' ? event.args : JSON.stringify(event.args, null, 2);
     const truncated = argsStr.length > 1000 ? argsStr.substring(0, 1000) + '...' : argsStr;
-    embed.addFields({ name: 'Arguments', value: `\`\`\`\n${truncated}\n\`\`\``, inline: false });
+    embed.addFields({ name: 'Arguments', value: `\`\`\`json\n${truncated}\n\`\`\``, inline: false });
   }
 
   // Add result (truncate if too long)
   if (event.result) {
     const resultStr = typeof event.result === 'string' ? event.result : JSON.stringify(event.result, null, 2);
     const truncated = resultStr.length > 1000 ? resultStr.substring(0, 1000) + '...' : resultStr;
-    embed.addFields({ name: 'Result', value: `\`\`\`\n${truncated}\n\`\`\``, inline: false });
+    embed.addFields({ name: 'Result', value: `\`\`\`json\n${truncated}\n\`\`\``, inline: false });
   }
 
   // Add reasoning
@@ -157,7 +128,7 @@ function createActivityEmbed(event) {
 
   // Add error
   if (event.error) {
-    embed.addFields({ name: 'Error', value: event.error, inline: false });
+    embed.addFields({ name: 'Error', value: `\`\`\`\n${event.error}\n\`\`\``, inline: false });
   }
 
   // Add metadata
@@ -183,12 +154,12 @@ client.on('interactionCreate', async (interaction) => {
         new EmbedBuilder()
           .setColor(0x1abc9c)
           .setTitle('📊 Bot Status')
-          .addFields([
+          .addFields(
             { name: 'Status', value: streamEnabled ? '🟢 Online (Streaming)' : '🟡 Online (Paused)', inline: true },
             { name: 'Uptime', value: uptimeStr, inline: true },
             { name: 'Channel', value: `<#${ACTIVITY_CHANNEL_ID}>`, inline: true },
             { name: 'Started', value: `<t:${Math.floor(startTime.getTime() / 1000)}:R>`, inline: true },
-          ])
+          )
           .setTimestamp(),
       ],
     });
