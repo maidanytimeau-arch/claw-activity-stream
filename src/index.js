@@ -1,4 +1,4 @@
-// Simplified version without JSON code blocks
+// Refactored version with cleaner Discord formatting
 
 import { Client, GatewayIntentBits, EmbedBuilder } from 'discord.js';
 import express from 'express';
@@ -92,7 +92,7 @@ async function sendActivityToDiscord(event) {
   }
 }
 
-// Create Discord embed from activity event
+// Create Discord embed from activity event - CLEANER VERSION
 function createActivityEmbed(event) {
   const colors = {
     tool_call: 0x3498db, // Blue
@@ -130,39 +130,68 @@ function createActivityEmbed(event) {
     embed.setTimestamp();
   }
 
-  // Add tool info
-  if (event.tool) {
-    embed.addFields({ name: 'Tool', value: event.tool, inline: true });
+  // Build description instead of multiple fields for cleaner look
+  let description = '';
+
+  // Tool call: compact inline format
+  if (event.type === 'tool_call' && event.tool) {
+    description += `\`${event.tool}\``;
+
+    if (event.args) {
+      const argsStr = typeof event.args === 'string' ? event.args : JSON.stringify(event.args);
+      const compactArgs = argsStr.length > 200 ? argsStr.substring(0, 200) + '...' : argsStr;
+      description += ` → ${compactArgs}`;
+    }
+
+    if (event.result) {
+      const resultStr = typeof event.result === 'string' ? event.result : JSON.stringify(event.result);
+      const compactResult = resultStr.length > 150 ? resultStr.substring(0, 150) + '...' : resultStr;
+      description += `\n✅ ${compactResult}`;
+    }
+
+    embed.setDescription(description);
+  }
+  // Reasoning: concise text
+  else if (event.type === 'reasoning' && event.reasoning) {
+    const truncated = event.reasoning.length > 300 ? event.reasoning.substring(0, 300) + '...' : event.reasoning;
+    embed.setDescription(truncated);
+  }
+  // Process: compact format
+  else if (event.type === 'process') {
+    if (event.tool) {
+      description += `\`${event.tool}\``;
+    }
+    if (event.result && event.result.status) {
+      description += ` - ${event.result.status}`;
+    }
+    embed.setDescription(description || 'Process update');
+  }
+  // Error: focused on the error message
+  else if (event.type === 'error') {
+    if (event.tool) {
+      description += `**${event.tool}**: `;
+    }
+    description += event.error || 'Unknown error';
+    embed.setDescription(description);
+  }
+  // Info: simple message
+  else if (event.type === 'info' && event.message) {
+    embed.setDescription(event.message);
+  }
+  // Default: try to show something useful
+  else {
+    if (event.message) {
+      embed.setDescription(event.message);
+    } else if (event.tool) {
+      embed.setDescription(`Tool: \`${event.tool}\``);
+    }
   }
 
-  // Add args (truncate if too long)
-  if (event.args) {
-    const argsStr = typeof event.args === 'string' ? event.args : JSON.stringify(event.args, null, 2);
-    const truncated = argsStr.length > 1000 ? argsStr.substring(0, 1000) + '...' : argsStr;
-    embed.addFields({ name: 'Arguments', value: `\`\`\`\n${truncated}\n\`\`\``, inline: false });
-  }
-
-  // Add result (truncate if too long)
-  if (event.result) {
-    const resultStr = typeof event.result === 'string' ? event.result : JSON.stringify(event.result, null, 2);
-    const truncated = resultStr.length > 1000 ? resultStr.substring(0, 1000) + '...' : resultStr;
-    embed.addFields({ name: 'Result', value: `\`\`\`\n${truncated}\n\`\`\``, inline: false });
-  }
-
-  // Add reasoning
-  if (event.reasoning) {
-    const truncated = event.reasoning.length > 2000 ? event.reasoning.substring(0, 2000) + '...' : event.reasoning;
-    embed.addFields({ name: 'Reasoning', value: truncated, inline: false });
-  }
-
-  // Add error
-  if (event.error) {
-    embed.addFields({ name: 'Error', value: event.error, inline: false });
-  }
-
-  // Add metadata
-  if (event.metadata) {
-    embed.addFields({ name: 'Metadata', value: JSON.stringify(event.metadata), inline: true });
+  // Only add metadata field if it exists and is meaningful
+  if (event.metadata && Object.keys(event.metadata).length > 0) {
+    const metaStr = JSON.stringify(event.metadata);
+    const compactMeta = metaStr.length > 150 ? metaStr.substring(0, 150) + '...' : metaStr;
+    embed.addFields({ name: 'Meta', value: compactMeta, inline: true });
   }
 
   return embed;
@@ -184,10 +213,9 @@ client.on('interactionCreate', async (interaction) => {
           .setColor(0x1abc9c)
           .setTitle('📊 Bot Status')
           .addFields([
-            { name: 'Status', value: streamEnabled ? '🟢 Online (Streaming)' : '🟡 Online (Paused)', inline: true },
+            { name: 'Status', value: streamEnabled ? '🟢 Streaming' : '🟡 Paused', inline: true },
             { name: 'Uptime', value: uptimeStr, inline: true },
             { name: 'Channel', value: `<#${ACTIVITY_CHANNEL_ID}>`, inline: true },
-            { name: 'Started', value: `<t:${Math.floor(startTime.getTime() / 1000)}:R>`, inline: true },
           ])
           .setTimestamp(),
       ],
