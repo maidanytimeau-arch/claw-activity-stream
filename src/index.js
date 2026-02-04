@@ -42,17 +42,23 @@ client.once('ready', () => {
 
 // Webhook endpoint for receiving activity events
 app.post('/webhook/activity', async (req, res) => {
+  console.log('📥 Webhook received:', req.body.type || 'unknown');
+
   // Verify webhook secret if configured
   if (WEBHOOK_SECRET && req.headers['x-webhook-secret'] !== WEBHOOK_SECRET) {
+    console.log('❌ Webhook secret verification failed');
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   if (!streamEnabled) {
+    console.log('⏸️ Stream disabled, skipping');
     return res.json({ status: 'ok', message: 'Stream disabled' });
   }
 
   const event = req.body;
+  console.log('📤 Sending to Discord:', event.type);
   const result = await sendActivityToDiscord(event);
+  console.log('✅ Send result:', result);
 
   res.json(result);
 });
@@ -77,9 +83,16 @@ async function sendActivityToDiscord(event) {
     }
 
     const embed = createActivityEmbed(event);
-    await channel.send({ embeds: [embed] });
+    console.log('📨 Embed created:', {
+      type: embed.data.title,
+      description: embed.data.description?.substring(0, 50),
+      color: embed.data.color,
+    });
 
-    return { status: 'ok' };
+    const sent = await channel.send({ embeds: [embed] });
+    console.log('✅ Message sent successfully:', sent.id);
+
+    return { status: 'ok', messageId: sent.id };
   } catch (error) {
     console.error('❌ Error sending activity to Discord:');
     console.error('   Message:', error.message);
